@@ -5,6 +5,8 @@ WORKDIR '/app'
 COPY package.json .
 RUN npm install
 
+# It is not the definitive solution to an existing problem, please read the README file
+# PENDING TO CHANGE
 RUN mkdir node_modules/.cache && chmod -R 777 node_modules/.cache
 
 COPY . .
