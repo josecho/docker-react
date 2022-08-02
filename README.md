@@ -1,70 +1,58 @@
-# Getting Started with Create React App
+When adding volumes and volume bookmarking to the docker run command you see these errors in your terminal:
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+"Failed to compile.
 
-## Available Scripts
+EACCES: permission denied, mkdir '/app/node_modules/.cache'"
 
-In the project directory, you can run:
+There is an issue with permissions in regards to Linux hosts (which includes Windows WSL2) and volumes. It can be solved by doing the following:
 
-### `npm start`
+FROM node:alpine
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+USER node
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+RUN mkdir -p /home/node/app
+WORKDIR /home/node/app
 
-### `npm test`
+COPY --chown=node:node ./package.json ./
+RUN npm install
+COPY --chown=node:node ./ ./
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+CMD ["npm", "start"]
 
-### `npm run build`
+---
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Remember to update the working directory paths in your docker run command to /home/node/app instead of just /app
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+eg:
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+docker run -it -p 3000:3000 -v /home/node/app/node_modules -v ~/my-project-directory:/home/node/app IMAGE_ID
 
-### `npm run eject`
+When we refactor to use Docker Compose, remember to update the working directory paths in your compose file:
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+volumes:
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+    volumes:
+      - /home/node/app/node_modules
+      - .:/home/node/app
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+Explanation of changes:
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+We are specifying that the USER which will execute RUN, CMD, or ENTRYPOINT instructions will be the node user, as opposed to root (default).
 
-## Learn More
+https://docs.docker.com/engine/reference/builder/#user
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+We are then creating a directory of /home/node/app prior to the WORKDIR instruction. This will prevent a permissions issue since WORKDIR by default will create a directory if it does not exist and set ownership to root.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+The inline chown commands will set ownership of the files you are copying from your local environment to the node user in the container.
 
-### Code Splitting
+The end result is that some files and directories will no longer be owned by root, and no npm processes will be run by the root user. Instead, they will all be owned and run by the node user.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+The code above was taken from this thread:
 
-### Analyzing the Bundle Size
+https://github.com/nodejs/docker-node/issues/740
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+https://github.com/moby/moby/issues/36408
 
-### Making a Progressive Web App
+Also, you can read up on the chown flag for the COPY instruction here:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+https://docs.docker.com/engine/reference/builder/#copy
